@@ -1,8 +1,13 @@
 import service from './axios';
 
 // 获取所有活动列表
-export const getAllActivities = () => {
-  return service.get('/activity');
+export const getAllActivities = (page = 1, size = 10) => {
+  return service.get('/activity', {
+    params: {
+      page,
+      size
+    }
+  });
 };
 
 // 搜索活动（关键词）
@@ -35,6 +40,11 @@ export const getActivitiesByTimeRange = (startTime, endTime) => {
 // 获取活动详情
 export const getActivityDetail = (id) => {
   return service.get(`/activity/${id}`);
+};
+
+// 获取公告列表
+export const getNotices = () => {
+  return service.get('/notice');
 };
 
 // 创建活动

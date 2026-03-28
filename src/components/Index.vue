@@ -1,35 +1,7 @@
 <template>
   <div class="index-container">
     <!-- 左侧导航栏 -->
-    <div class="sidebar">
-      <div class="logo">
-        <h2>活动管理</h2>
-        <div class="user-info">
-          欢迎{{ username }}登录
-        </div>
-      </div>
-      <nav class="nav-menu">
-        <ul>
-          <li :class="{ active: activeMenu === 'home' }" @click="navigate('home')">
-            <span class="menu-text">主页</span>
-          </li>
-          <li :class="{ active: activeMenu === 'hot' }" @click="navigate('hot')">
-            <span class="menu-text">热门活动</span>
-          </li>
-          <li :class="{ active: activeMenu === 'my' }" @click="navigate('my')">
-            <span class="menu-text">我的活动</span>
-          </li>
-          <li :class="{ active: activeMenu === 'settings' }" @click="navigate('settings')">
-            <span class="menu-text">设置</span>
-          </li>
-        </ul>
-        <div class="logout-container">
-          <li class="logout" @click="logout">
-            <span class="menu-text">退出登录</span>
-          </li>
-        </div>
-      </nav>
-    </div>
+    <Navbar :activeMenu="activeMenu" />
     
     <!-- 右侧主内容区 -->
     <div class="main-content">
@@ -55,27 +27,44 @@
             <button class="apply-button" @click="applyDateFilter">应用</button>
           </div>
         </div>
-        <button class="publish-button">+发布活动</button>
+        <button class="publish-button" @click="openPublishModal">+发布活动</button>
       </div>
       
-      <!-- 图片轮播区域 -->
-      <div v-if="!isSearching" class="carousel">
-        <div class="carousel-container" :style="{ transform: `translateX(-${currentSlide * 100}%)` }">
-          <div class="carousel-slide" v-for="(slide, index) in carouselSlides" :key="index">
-            <img :src="slide.image" :alt="slide.title">
-            <div class="carousel-caption">
-              <h3>{{ slide.title }}</h3>
-              <p>{{ slide.description }}</p>
+      <!-- 图片轮播和通知展示区域 -->
+      <div v-if="!isSearching" class="carousel-section">
+        <!-- 图片轮播区域 -->
+        <div class="carousel">
+          <div class="carousel-container" :style="{ transform: `translateX(-${currentSlide * 100}%)` }">
+            <div class="carousel-slide" v-for="(slide, index) in carouselSlides" :key="index">
+              <img :src="slide.image" :alt="slide.title">
+              <div class="carousel-caption">
+                <h3>{{ slide.title }}</h3>
+                <p>{{ slide.description }}</p>
+              </div>
             </div>
           </div>
+          <div class="carousel-indicators">
+            <span 
+              v-for="(slide, index) in carouselSlides" 
+              :key="index"
+              :class="{ active: currentSlide === index }"
+              @click="currentSlide = index"
+            ></span>
+          </div>
         </div>
-        <div class="carousel-indicators">
-          <span 
-            v-for="(slide, index) in carouselSlides" 
-            :key="index"
-            :class="{ active: currentSlide === index }"
-            @click="currentSlide = index"
-          ></span>
+        
+        <!-- 通知展示区域 -->
+        <div class="notification-area">
+          <div class="notification-header">
+            <h3>通知公告</h3>
+          </div>
+          <div class="notification-list">
+            <div class="notification-item" v-for="(notice, index) in notifications" :key="index">
+              <span class="notification-dot"></span>
+              <span class="notification-title">{{ notice.title }}</span>
+              <span class="notification-time">{{ formatNoticeTime(notice.createTime) }}</span>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -86,7 +75,7 @@
           <router-link to="/hot" class="view-more">查看更多</router-link>
         </div>
         <div class="hot-activity-cards">
-          <div class="hot-activity-card" v-for="(activity, index) in hotActivities" :key="index">
+          <div class="hot-activity-card" v-for="(activity, index) in hotActivities.slice(0, 4)" :key="index" @click="openActivityDetail(activity)">
             <div class="hot-card-image">
               <img :src="activity.image" :alt="activity.title">
             </div>
@@ -95,7 +84,7 @@
               <p class="hot-card-description">{{ activity.description }}</p>
               <div class="hot-card-footer">
                 <span class="activity-date">{{ activity.date }}</span>
-                <span class="activity-status" :class="activity.status">{{ activity.statusText }}</span>
+                <span class="activity-status" :class="activity.statusTextClass">{{ activity.statusText }}</span>
               </div>
             </div>
           </div>
@@ -115,7 +104,7 @@
             <span class="col-status">状态</span>
             <span class="col-creator">创建者</span>
           </div>
-          <div class="table-row" v-for="(activity, index) in paginatedActivities" :key="index">
+          <div class="table-row" v-for="(activity, index) in paginatedActivities" :key="index" @click="openActivityDetail(activity)">
             <span class="col-name">{{ activity.activityName }}</span>
             <span class="col-desc">{{ activity.activityDesc }}</span>
             <span class="col-time">{{ formatTime(activity.startTime) }}</span>
@@ -127,11 +116,98 @@
         </div>
         <!-- 分页 -->
         <div class="pagination" v-if="allActivities.length > 0">
-          <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">上一页</button>
+          <button class="page-btn" :disabled="currentPage === 1" @click="handlePageChange(currentPage - 1)">上一页</button>
           <span class="page-info">第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
-          <button class="page-btn" :disabled="currentPage >= totalPages" @click="currentPage++">下一页</button>
+          <button class="page-btn" :disabled="currentPage >= totalPages" @click="handlePageChange(currentPage + 1)">下一页</button>
         </div>
         <div v-if="loading" class="loading">加载中...</div>
+      </div>
+    </div>
+    
+    <!-- 活动详情弹窗 -->
+    <div v-if="showDetailModal" class="modal-overlay" @click="closeDetailModal">
+      <div class="modal-container" @click.stop>
+        <button class="modal-close-btn" @click="closeDetailModal">×</button>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>{{ selectedActivity?.activityName || selectedActivity?.title }}</h2>
+            <span class="modal-status" :class="getStatusClass(selectedActivity?.status)">
+              {{ getStatusText(selectedActivity?.status) }}
+            </span>
+          </div>
+          <div class="modal-image" v-if="selectedActivity?.coverUrl || selectedActivity?.image">
+            <img :src="selectedActivity?.coverUrl || selectedActivity?.image" :alt="selectedActivity?.activityName || selectedActivity?.title">
+          </div>
+          <div class="modal-info">
+            <div class="info-item">
+              <label>活动描述：</label>
+              <p>{{ selectedActivity?.activityDesc || selectedActivity?.description }}</p>
+            </div>
+            <div class="info-item">
+              <label>开始时间：</label>
+              <p>{{ formatTime(selectedActivity?.startTime) }}</p>
+            </div>
+            <div class="info-item">
+              <label>结束时间：</label>
+              <p>{{ formatTime(selectedActivity?.endTime) }}</p>
+            </div>
+            <div class="info-item">
+              <label>创建者：</label>
+              <p>{{ selectedActivity?.creator }}</p>
+            </div>
+            <div class="info-item">
+              <label>创建时间：</label>
+              <p>{{ formatTime(selectedActivity?.createTime) }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 发布活动弹窗 -->
+    <div v-if="showPublishModal" class="modal-overlay" @click="closePublishModal">
+      <div class="modal-container publish-modal" @click.stop>
+        <button class="modal-close-btn" @click="closePublishModal">×</button>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>发布活动</h2>
+          </div>
+          <div class="publish-form">
+            <div class="form-item">
+              <label>活动名称：</label>
+              <input type="text" v-model="publishForm.activityName" placeholder="请输入活动名称">
+            </div>
+            <div class="form-item">
+              <label>活动描述：</label>
+              <textarea v-model="publishForm.activityDesc" placeholder="请输入活动描述" rows="4"></textarea>
+            </div>
+            <div class="form-item">
+              <label>封面图片：</label>
+              <div class="image-upload">
+                <input type="file" @change="handleImageUpload" accept="image/*" ref="imageInput">
+                <div class="upload-preview" v-if="publishForm.coverUrl">
+                  <img :src="publishForm.coverUrl" alt="封面图片">
+                  <button class="remove-image" @click="removeImage">×</button>
+                </div>
+                <div class="upload-placeholder" v-else>
+                  <span>点击上传图片</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-item">
+              <label>开始时间：</label>
+              <input type="datetime-local" v-model="publishForm.startTime">
+            </div>
+            <div class="form-item">
+              <label>结束时间：</label>
+              <input type="datetime-local" v-model="publishForm.endTime">
+            </div>
+            <div class="form-actions">
+              <button class="cancel-btn" @click="closePublishModal">取消</button>
+              <button class="submit-btn" @click="submitPublish">发布</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -140,7 +216,8 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { getAllActivities, getHotActivities, getActivitiesByStatus, getActivitiesByTimeRange, searchActivities } from '../api/activity';
+import { getAllActivities, getHotActivities, getActivitiesByStatus, getActivitiesByTimeRange, searchActivities, createActivity, getNotices } from '../api/activity';
+import Navbar from './Navbar.vue';
 
 // 导航菜单状态
 const activeMenu = ref('home');
@@ -166,6 +243,26 @@ const endDate = ref('');
 // 搜索和筛选状态
 const isSearching = ref(false);
 
+// 弹窗相关状态
+const showDetailModal = ref(false);
+const selectedActivity = ref(null);
+
+// 发布活动相关状态
+const showPublishModal = ref(false);
+const publishForm = ref({
+  id: 0,
+  activityName: '',
+  activityDesc: '',
+  coverUrl: '',
+  startTime: '',
+  endTime: '',
+  status: 0,
+  hotStatus: 0,
+  creator: '',
+  createTime: '',
+  updateTime: ''
+});
+
 // 轮播图数据
 const currentSlide = ref(0);
 const carouselSlides = ref([
@@ -186,6 +283,9 @@ const carouselSlides = ref([
   }
 ]);
 
+// 通知数据（从接口获取）
+const notifications = ref([]);
+
 // 热门活动数据（从接口获取前4个）
 const hotActivities = ref([]);
 
@@ -194,18 +294,12 @@ const allActivities = ref([]);
 
 // 分页相关
 const currentPage = ref(1);
-const pageSize = 15;
+const pageSize = 10;
+const totalPages = ref(1);
 
 // 计算当前页的活动数据
 const paginatedActivities = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  const end = start + pageSize;
-  return allActivities.value.slice(start, end);
-});
-
-// 计算总页数
-const totalPages = computed(() => {
-  return Math.ceil(allActivities.value.length / pageSize);
+  return allActivities.value;
 });
 
 // 格式化时间
@@ -241,32 +335,17 @@ const getStatusText = (status) => {
   }
 };
 
-// 导航方法
-const navigate = (menu) => {
-  activeMenu.value = menu;
-  switch (menu) {
-    case 'home':
-      router.push('/index');
-      break;
-    case 'hot':
-      router.push('/hot');
-      break;
-    case 'my':
-      router.push('/my');
-      break;
-    case 'settings':
-      router.push('/settings');
-      break;
-  }
-};
-
-// 退出登录
-const logout = () => {
-  // 清除本地存储
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  // 跳转到登录页面
-  router.push('/');
+// 格式化通知时间
+const formatNoticeTime = (timeStr) => {
+  if (!timeStr) return '';
+  const date = new Date(timeStr);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 
 // 获取活动列表
@@ -279,24 +358,56 @@ const fetchActivities = async (status = -1, startTime = null, endTime = null) =>
     } else if (startTime && endTime) {
       allResponse = await getActivitiesByTimeRange(startTime, endTime);
     } else {
-      allResponse = await getAllActivities();
+      allResponse = await getAllActivities(currentPage.value, 10);
     }
     
     const hotResponse = await getHotActivities();
+    const noticeResponse = await getNotices();
     
     if ((allResponse.code === 200 || allResponse.code === 0) && allResponse.data) {
-      allActivities.value = allResponse.data;
+      // 处理分页接口返回的数据结构
+      const responseData = allResponse.data.data || allResponse.data;
+      allActivities.value = responseData;
+      // 假设接口返回总页数，如果没有返回，可以根据总数据量和每页大小计算
+      // 这里暂时假设总页数为 1，实际应该从接口返回数据中获取
+      // 示例：如果接口返回 { data: { data: [...], totalPages: 5 } }，则：
+      // totalPages.value = allResponse.data.totalPages || 1;
+      totalPages.value = allResponse.data.totalPages || Math.ceil(responseData.length / pageSize) || 1;
     }
     
     if ((hotResponse.code === 200 || hotResponse.code === 0) && hotResponse.data) {
-      hotActivities.value = hotResponse.data.map(item => ({
-        image: item.coverUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3',
-        title: item.activityName,
-        description: item.activityDesc,
-        date: formatTime(item.startTime),
-        status: getStatusClass(item.status),
-        statusText: getStatusText(item.status)
-      }));
+      const hotData = hotResponse.data.data || hotResponse.data;
+      if (hotData && hotData.length > 0) {
+        hotActivities.value = hotData.map(item => ({
+          id: item.id,
+          image: item.coverUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3',
+          title: item.activityName,
+          description: item.activityDesc,
+          date: formatTime(item.startTime),
+          status: getStatusClass(item.status),
+          statusText: getStatusText(item.status),
+          statusTextClass: getStatusClass(item.status),
+          activityName: item.activityName,
+          activityDesc: item.activityDesc,
+          coverUrl: item.coverUrl,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          status: item.status,
+          creator: item.creator,
+          createTime: item.createTime
+        }));
+      } else {
+        hotActivities.value = [];
+      }
+    }
+    
+    if ((noticeResponse.code === 200 || noticeResponse.code === 0) && noticeResponse.data) {
+      const noticeData = noticeResponse.data.data || noticeResponse.data;
+      if (noticeData && noticeData.length > 0) {
+        notifications.value = noticeData;
+      } else {
+        notifications.value = [];
+      }
     }
   } catch (error) {
     console.error('获取活动列表失败:', error);
@@ -355,6 +466,110 @@ const clearSearch = async () => {
   await fetchActivities();
 };
 
+// 处理分页变化
+const handlePageChange = async (page) => {
+  currentPage.value = page;
+  await fetchActivities();
+};
+
+// 打开活动详情弹窗
+const openActivityDetail = (activity) => {
+  selectedActivity.value = activity;
+  showDetailModal.value = true;
+};
+
+// 关闭活动详情弹窗
+const closeDetailModal = () => {
+  showDetailModal.value = false;
+  selectedActivity.value = null;
+};
+
+// 打开发布活动弹窗
+const openPublishModal = () => {
+  showPublishModal.value = true;
+  publishForm.value = {
+    id: 0,
+    activityName: '',
+    activityDesc: '',
+    coverUrl: '',
+    startTime: '',
+    endTime: '',
+    status: 0,
+    hotStatus: 0,
+    creator: username.value || '',
+    createTime: '',
+    updateTime: ''
+  };
+};
+
+// 关闭发布活动弹窗
+const closePublishModal = () => {
+  showPublishModal.value = false;
+  publishForm.value = {
+    id: 0,
+    activityName: '',
+    activityDesc: '',
+    coverUrl: '',
+    startTime: '',
+    endTime: '',
+    status: 0,
+    hotStatus: 0,
+    creator: '',
+    createTime: '',
+    updateTime: ''
+  };
+};
+
+// 处理图片上传
+const handleImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      publishForm.value.coverUrl = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+// 移除图片
+const removeImage = () => {
+  publishForm.value.coverUrl = '';
+  if (event.target.tagName === 'BUTTON') {
+    event.target.previousElementSibling.src = '';
+  }
+};
+
+// 提交发布活动
+const submitPublish = async () => {
+  if (!publishForm.value.activityName || !publishForm.value.activityDesc) {
+    alert('请填写活动名称和描述');
+    return;
+  }
+  
+  if (!publishForm.value.startTime || !publishForm.value.endTime) {
+    alert('请选择开始时间和结束时间');
+    return;
+  }
+  
+  console.log('发布活动数据:', publishForm.value);
+  
+  try {
+    const response = await createActivity(publishForm.value);
+    console.log('发布活动响应:', response);
+    if (response.code === 200 || response.code === 0) {
+      alert('活动发布成功！');
+      closePublishModal();
+      await fetchActivities();
+    } else {
+      alert('活动发布失败：' + response.message);
+    }
+  } catch (error) {
+    console.error('发布活动失败:', error);
+    alert('活动发布失败，请稍后重试');
+  }
+};
+
 // 应用时间筛选
 const applyDateFilter = () => {
   if (startDate.value && endDate.value) {
@@ -408,98 +623,26 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* 左侧导航栏 */
-.sidebar {
-  width: 250px;
-  background-color: #2c3e50;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  height: 100vh;
-  left: 0;
-  top: 0;
-  z-index: 100;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-}
-
-.logo {
-  padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logo h2 {
-  margin: 0 0 10px 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.user-info {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-  margin-top: 10px;
-}
-
-.logout {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logout:hover {
-  background-color: #e74c3c !important;
-}
-
-.nav-menu {
-  flex: 1;
-  padding: 20px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  flex: 1;
-}
-
-.logout-container {
-  margin-top: auto;
-  width: 100%;
-}
-
-.nav-menu li {
-  padding: 15px 20px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.nav-menu li:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.nav-menu li.active {
-  background-color: #3498db;
-}
-
-.menu-text {
-  font-size: 16px;
-}
-
 /* 右侧主内容区 */
 .main-content {
   flex: 1;
-  margin-left: 250px;
+  margin-left: 260px;
   padding: 20px 20px 20px 20px;
   overflow-y: auto;
   background-color: #f5f5f5;
   height: 100vh;
   box-sizing: border-box;
-  width: calc(100% - 250px);
+  width: calc(100% - 260px);
   position: absolute;
   top: 0;
   right: 0;
+  transition: all 0.3s ease;
+}
+
+/* 当导航栏折叠时 */
+.sidebar.collapsed + .main-content {
+  margin-left: 70px;
+  width: calc(100% - 70px);
 }
 
 /* 热门活动 */
@@ -546,6 +689,7 @@ onMounted(() => {
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
 }
 
 .hot-activity-card:hover {
@@ -590,6 +734,9 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   font-size: 11px;
+}
+
+.hot-card-footer .activity-date {
   color: #999999;
 }
 
@@ -639,6 +786,7 @@ onMounted(() => {
   transition: background-color 0.3s ease;
   font-size: 14px;
   color: #333333;
+  cursor: pointer;
 }
 
 .table-row:hover {
@@ -896,14 +1044,95 @@ onMounted(() => {
   background-color: #219a52;
 }
 
+/* 轮播图和通知区域容器 */
+.carousel-section {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  width: 100%;
+}
+
+/* 通知展示区域 */
+.notification-area {
+  width: 280px;
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 300px;
+  box-sizing: border-box;
+}
+
+.notification-header {
+  border-bottom: 2px solid #e8e8e8;
+  padding-bottom: 12px;
+  margin-bottom: 15px;
+}
+
+.notification-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+  font-weight: 600;
+}
+
+.notification-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item:hover {
+  background-color: #f8f9fa;
+  padding-left: 8px;
+}
+
+.notification-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #4299e1;
+  border-radius: 50%;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.notification-title {
+  flex: 1;
+  font-size: 14px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-time {
+  font-size: 12px;
+  color: #999;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
 /* 轮播图 */
 .carousel {
   position: relative;
-  width: 100%;
+  flex: 1;
   height: 300px;
   overflow: hidden;
   border-radius: 12px;
-  margin-bottom: 30px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
 }
@@ -1113,5 +1342,293 @@ onMounted(() => {
     white-space: nowrap;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
   }
+}
+
+/* 活动详情弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-container {
+  width: 70%;
+  height: 70%;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.1);
+  border: none;
+  font-size: 28px;
+  color: #333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.modal-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+  transform: scale(1.1);
+}
+
+.modal-content {
+  padding: 30px;
+  padding-top: 70px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 28px;
+}
+
+.modal-status {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.modal-status.upcoming {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.modal-status.ongoing {
+  background-color: #e8f5e8;
+  color: #388e3c;
+}
+
+.modal-status.ended {
+  background-color: #ffebee;
+  color: #d32f2f;
+}
+
+.modal-image {
+  width: 100%;
+  height: 300px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 30px;
+}
+
+.modal-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.modal-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-item label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.info-item p {
+  margin: 0;
+  color: #333;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* 发布活动弹窗样式 */
+.publish-modal {
+  width: 600px;
+  max-width: 90%;
+  height: auto;
+  max-height: 90vh;
+}
+
+.publish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-item label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.form-item input,
+.form-item textarea,
+.form-item select {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.form-item input:focus,
+.form-item textarea:focus,
+.form-item select:focus {
+  border-color: #3498db;
+}
+
+.form-item textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.image-upload {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+}
+
+.image-upload:hover {
+  border-color: #3498db;
+}
+
+.image-upload input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.upload-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.remove-image {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+}
+
+.remove-image:hover {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+.upload-placeholder {
+  color: #999;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.cancel-btn,
+.submit-btn {
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn {
+  background-color: #f5f5f5;
+  color: #666;
+  border: none;
+}
+
+.cancel-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.submit-btn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+}
+
+.submit-btn:hover {
+  background-color: #2980b9;
 }
 </style>

@@ -1,5 +1,7 @@
 <template>
   <div class="login-container">
+    <!-- 随机圆形背景 -->
+    <div class="circle" v-for="n in 15" :key="n" :style="getCircleStyle(n)"></div>
     <div class="login-box" :class="{ 'active': isRegister }">
       <div class="left-box">
         <!-- 登录状态显示普通笑脸 -->
@@ -89,6 +91,52 @@ import { useRouter } from 'vue-router';
 import { login, register } from '../api/user';
 
 const router = useRouter();
+
+// 生成随机圆形样式
+const getCircleStyle = (index) => {
+  // 固定种子，保证刷新页面位置不变
+  const seed = index * 12345 + 6789;
+
+  // 随机大小 50-200px
+  const size = 50 + (seed % 150);
+
+  // ✅ 关键：用不同的哈希算法，让 left / top 完全独立、真随机分布
+  const hashLeft = x => {
+    let h = x * 371 + 123;
+    h ^= h << 17;
+    h ^= h >> 13;
+    h ^= h << 5;
+    return (h & 0x7fffffff) % 100; // 0~99
+  };
+
+  const hashTop = x => {
+    let h = x * 211 + 456;
+    h ^= h << 15;
+    h ^= h >> 11;
+    h ^= h << 3;
+    return (h & 0x7fffffff) % 100;
+  };
+
+  // 随机位置（全屏均匀分布）
+  const left = hashLeft(seed);
+  const top = hashTop(seed);
+
+  // 淡色系随机颜色
+  const hue = (seed * 137) % 360;
+  const saturation = 30 + (seed % 20);
+  const lightness = 80 + (seed % 10);
+  const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+
+  return {
+    width: `${size}px`,
+    height: `${size}px`,
+    left: `${left}%`,
+    top: `${top}%`,
+    backgroundColor: color,
+    position: 'absolute',
+    borderRadius: '50%',
+  };
+};
 
 // 状态管理
 const isRegister = ref(false);
@@ -243,9 +291,20 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;    /* 保持页面上下居中 */
-  width: 100%;         /* 左右占满 */
+  min-height: 100vh;
+  width: 100%;
   background-color: #e4ebfa;
+  position: relative;
+  overflow: hidden; 
+  margin: 0;
+}
+
+/* 随机圆形样式 */
+.circle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.7;
+  z-index: 0;
 }
 
 .login-box {
@@ -259,6 +318,7 @@ onMounted(() => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   margin: 20px;
+  z-index: 1;
 }
 
 .left-box {

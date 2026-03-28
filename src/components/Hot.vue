@@ -1,35 +1,7 @@
 <template>
   <div class="hot-page-container">
     <!-- 左侧导航栏 -->
-    <div class="sidebar">
-      <div class="logo">
-        <h2>活动管理</h2>
-        <div class="user-info">
-          欢迎{{ username }}登录
-        </div>
-      </div>
-      <nav class="nav-menu">
-        <ul>
-          <li :class="{ active: activeMenu === 'home' }" @click="navigate('home')">
-            <span class="menu-text">主页</span>
-          </li>
-          <li :class="{ active: activeMenu === 'hot' }" @click="navigate('hot')">
-            <span class="menu-text">热门活动</span>
-          </li>
-          <li :class="{ active: activeMenu === 'my' }" @click="navigate('my')">
-            <span class="menu-text">我的活动</span>
-          </li>
-          <li :class="{ active: activeMenu === 'settings' }" @click="navigate('settings')">
-            <span class="menu-text">设置</span>
-          </li>
-        </ul>
-        <div class="logout-container">
-          <li class="logout" @click="logout">
-            <span class="menu-text">退出登录</span>
-          </li>
-        </div>
-      </nav>
-    </div>
+    <Navbar :activeMenu="activeMenu" />
     
     <!-- 右侧主内容区 -->
     <div class="main-content">
@@ -70,53 +42,13 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getHotActivities } from '../api/activity';
+import Navbar from './Navbar.vue';
 
 const router = useRouter();
 const activeMenu = ref('hot');
-const username = ref('');
 const loading = ref(false);
 const hotActivities = ref([]);
 const defaultImage = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3';
-
-// 从本地存储获取用户信息
-const user = localStorage.getItem('user');
-if (user) {
-  try {
-    const userObj = JSON.parse(user);
-    username.value = userObj.username || '用户';
-  } catch (error) {
-    console.error('解析用户信息失败:', error);
-    username.value = '用户';
-  }
-} else {
-  username.value = '用户';
-}
-
-// 导航方法
-const navigate = (menu) => {
-  activeMenu.value = menu;
-  switch (menu) {
-    case 'home':
-      router.push('/index');
-      break;
-    case 'hot':
-      router.push('/hot');
-      break;
-    case 'my':
-      router.push('/my');
-      break;
-    case 'settings':
-      router.push('/settings');
-      break;
-  }
-};
-
-// 退出登录
-const logout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  router.push('/');
-};
 
 const fetchHotActivities = async () => {
   loading.value = true;
@@ -174,85 +106,6 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* 左侧导航栏 */
-.sidebar {
-  width: 250px;
-  background-color: #2c3e50;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  height: 100vh;
-  left: 0;
-  top: 0;
-  z-index: 100;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-}
-
-.logo {
-  padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logo h2 {
-  margin: 0 0 10px 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.user-info {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-  margin-top: 10px;
-}
-
-.nav-menu {
-  flex: 1;
-  padding: 20px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.nav-menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  flex: 1;
-}
-
-.nav-menu li {
-  padding: 15px 20px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.nav-menu li:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.nav-menu li.active {
-  background-color: #3498db;
-}
-
-.menu-text {
-  font-size: 16px;
-}
-
-.logout-container {
-  margin-top: auto;
-  width: 100%;
-}
-
-.logout {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logout:hover {
-  background-color: #e74c3c !important;
-}
-
 /* 右侧主内容区 */
 .main-content {
   padding: 20px;
@@ -260,10 +113,18 @@ onMounted(() => {
   background-color: #f5f5f5;
   height: 100vh;
   box-sizing: border-box;
-  width: calc(100% - 250px);
+  width: calc(100% - 260px);
   position: absolute;
   top: 0;
   right: 0;
+  margin-left: 260px;
+  transition: all 0.3s ease;
+}
+
+/* 当导航栏折叠时 */
+.sidebar.collapsed + .main-content {
+  margin-left: 70px;
+  width: calc(100% - 70px);
 }
 
 .hot-header {
