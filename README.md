@@ -1,5 +1,14 @@
+# 这是第三次提交 4.1
+### 这是PBL6项目的前端部分，母项目：https://github.com/Lalum-ljy/PBL6-7
+### 关于本次提交
+- 导航栏增加了ai助手按钮，可以打开ai助手对话框
+  - 对话框可以自由拖动
+  - 适配了接口api/chat
+
+
+
 # 这是第二次提交 3.28
-## # 这是PBL6项目的前端部分，母项目：https://github.com/Lalum-ljy/PBL6-7
+### 这是PBL6项目的前端部分，母项目：https://github.com/Lalum-ljy/PBL6-7
 ### 关于本次提交
 - 小改登录页面（增加了背景的淡色圆形，小改不加图）
 - 彻底优化了导航栏样式
@@ -14,7 +23,7 @@
 
 
 # 这是第一次提交 3.24
-## # 这是PBL6项目的前端部分，母项目：https://github.com/Lalum-ljy/PBL6-7
+### 这是PBL6项目的前端部分，母项目：https://github.com/Lalum-ljy/PBL6-7
 ### 关于本次提交
 **这是前端的第一个版本，本次提交实现了三个页面**
 - 登录注册页面
