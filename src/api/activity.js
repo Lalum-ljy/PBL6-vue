@@ -42,11 +42,6 @@ export const getActivityDetail = (id) => {
   return service.get(`/activity/${id}`);
 };
 
-// 获取公告列表
-export const getNotices = () => {
-  return service.get('/notice');
-};
-
 // 创建活动
 export const createActivity = (data) => {
   return service.post('/activity', data);
@@ -60,4 +55,28 @@ export const updateActivity = (id, data) => {
 // 删除活动
 export const deleteActivity = (id) => {
   return service.delete(`/activity/${id}`);
+};
+
+// 上传图片
+export const uploadImage = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return service.post('/upload/image', formData);
+};
+
+// 获取通知列表
+export const getNotices = () => {
+  return service.get('/notice');
+};
+
+// 聊天接口
+export const chat = (message) => {
+  return service.post('/chat', {
+    message: message
+  }, {
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    timeout: 120000 // 设置 120 秒超时，足够 AI 模型处理复杂操作
+  });
 };

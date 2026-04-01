@@ -216,8 +216,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { getAllActivities, getHotActivities, getActivitiesByStatus, getActivitiesByTimeRange, searchActivities, createActivity, getNotices } from '../api/activity';
+import { getAllActivities, getHotActivities, getActivitiesByStatus, getActivitiesByTimeRange, searchActivities, createActivity, getNotices, uploadImage } from '../api/activity';
 import Navbar from './Navbar.vue';
+
+// 全局配置
+const IMG_DOMAIN = 'http://localhost:8080';
 
 // 导航菜单状态
 const activeMenu = ref('home');
@@ -262,6 +265,9 @@ const publishForm = ref({
   createTime: '',
   updateTime: ''
 });
+
+// 图片文件
+const imageFile = ref(null);
 
 // 轮播图数据
 const currentSlide = ref(0);
@@ -367,7 +373,11 @@ const fetchActivities = async (status = -1, startTime = null, endTime = null) =>
     if ((allResponse.code === 200 || allResponse.code === 0) && allResponse.data) {
       // 处理分页接口返回的数据结构
       const responseData = allResponse.data.data || allResponse.data;
-      allActivities.value = responseData;
+      // 为 coverUrl 字段添加域名
+      allActivities.value = responseData.map(activity => ({
+        ...activity,
+        coverUrl: activity.coverUrl ? IMG_DOMAIN + activity.coverUrl : activity.coverUrl
+      }));
       // 假设接口返回总页数，如果没有返回，可以根据总数据量和每页大小计算
       // 这里暂时假设总页数为 1，实际应该从接口返回数据中获取
       // 示例：如果接口返回 { data: { data: [...], totalPages: 5 } }，则：
@@ -380,7 +390,7 @@ const fetchActivities = async (status = -1, startTime = null, endTime = null) =>
       if (hotData && hotData.length > 0) {
         hotActivities.value = hotData.map(item => ({
           id: item.id,
-          image: item.coverUrl || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3',
+          image: item.coverUrl ? IMG_DOMAIN + item.coverUrl : 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3',
           title: item.activityName,
           description: item.activityDesc,
           date: formatTime(item.startTime),
@@ -389,7 +399,7 @@ const fetchActivities = async (status = -1, startTime = null, endTime = null) =>
           statusTextClass: getStatusClass(item.status),
           activityName: item.activityName,
           activityDesc: item.activityDesc,
-          coverUrl: item.coverUrl,
+          coverUrl: item.coverUrl ? IMG_DOMAIN + item.coverUrl : item.coverUrl,
           startTime: item.startTime,
           endTime: item.endTime,
           status: item.status,
@@ -518,12 +528,14 @@ const closePublishModal = () => {
     createTime: '',
     updateTime: ''
   };
+  imageFile.value = null;
 };
 
 // 处理图片上传
 const handleImageUpload = (event) => {
   const file = event.target.files[0];
   if (file) {
+    imageFile.value = file;
     const reader = new FileReader();
     reader.onload = (e) => {
       publishForm.value.coverUrl = e.target.result;
@@ -533,9 +545,10 @@ const handleImageUpload = (event) => {
 };
 
 // 移除图片
-const removeImage = () => {
+const removeImage = (event) => {
   publishForm.value.coverUrl = '';
-  if (event.target.tagName === 'BUTTON') {
+  imageFile.value = null;
+  if (event && event.target && event.target.tagName === 'BUTTON') {
     event.target.previousElementSibling.src = '';
   }
 };
@@ -555,7 +568,38 @@ const submitPublish = async () => {
   console.log('发布活动数据:', publishForm.value);
   
   try {
-    const response = await createActivity(publishForm.value);
+    // 先上传图片，获取图片路径
+    let coverUrl = '';
+    if (imageFile.value) {
+      try {
+        const uploadResponse = await uploadImage(imageFile.value);
+        if (uploadResponse.code === 200 || uploadResponse.code === 0) {
+          coverUrl = uploadResponse.data;
+        } else {
+          alert('图片上传失败：' + uploadResponse.message);
+          return;
+        }
+      } catch (error) {
+        console.error('上传图片失败:', error);
+        alert('图片上传失败，请稍后重试');
+        return;
+      }
+    }
+    
+    // 构建活动对象
+    const activity = {
+      activityName: publishForm.value.activityName,
+      activityDesc: publishForm.value.activityDesc,
+      coverUrl: coverUrl,
+      startTime: publishForm.value.startTime,
+      endTime: publishForm.value.endTime,
+      status: publishForm.value.status,
+      hotStatus: publishForm.value.hotStatus,
+      creator: publishForm.value.creator || username.value
+    };
+    
+    // 调用创建活动接口（使用 JSON 格式）
+    const response = await createActivity(activity);
     console.log('发布活动响应:', response);
     if (response.code === 200 || response.code === 0) {
       alert('活动发布成功！');

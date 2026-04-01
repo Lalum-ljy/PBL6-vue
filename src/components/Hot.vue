@@ -44,6 +44,9 @@ import { useRouter } from 'vue-router';
 import { getHotActivities } from '../api/activity';
 import Navbar from './Navbar.vue';
 
+// 全局配置
+const IMG_DOMAIN = 'http://localhost:8080';
+
 const router = useRouter();
 const activeMenu = ref('hot');
 const loading = ref(false);
@@ -55,7 +58,13 @@ const fetchHotActivities = async () => {
   try {
     const response = await getHotActivities();
     if (response.code === 200 && response.data) {
-      hotActivities.value = response.data;
+      // 处理分页接口返回的数据结构
+      const responseData = response.data.data || response.data;
+      // 为 coverUrl 字段添加域名
+      hotActivities.value = responseData.map(activity => ({
+        ...activity,
+        coverUrl: activity.coverUrl ? IMG_DOMAIN + activity.coverUrl : activity.coverUrl
+      }));
     }
   } catch (error) {
     console.error('获取热门活动失败:', error);
