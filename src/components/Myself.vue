@@ -49,6 +49,10 @@
                 <span class="status-badge" :class="getStatusClass(activity.status)">
                   {{ getStatusText(activity.status) }}
                 </span>
+                <div class="card-actions">
+                  <button class="action-btn edit-btn" @click.stop="editActivity(activity)">编辑</button>
+                  <button class="action-btn delete-btn" @click.stop="deleteActivity(activity.id)">删除</button>
+                </div>
               </div>
             </div>
           </div>
@@ -76,6 +80,10 @@
                 <div class="item-time">
                   <span class="time-label">结束时间：</span>
                   <span class="time-value">{{ formatTime(activity.endTime) }}</span>
+                </div>
+                <div class="item-actions">
+                  <button class="action-btn edit-btn" @click.stop="editActivity(activity)">编辑</button>
+                  <button class="action-btn delete-btn" @click.stop="deleteActivity(activity.id)">删除</button>
                 </div>
                 <div class="item-status">
                   <span class="status-badge" :class="getStatusClass(activity.status)">
@@ -128,12 +136,65 @@
         </div>
       </div>
     </div>
+    
+    <!-- 编辑活动弹窗 -->
+    <div v-if="showEditModal" class="modal-overlay active" @click="closeEditModal">
+      <div class="modal-container" @click.stop>
+        <button class="modal-close-btn" @click="closeEditModal">×</button>
+        <div class="modal-content">
+          <h2>编辑活动</h2>
+          <form @submit.prevent="submitEdit">
+            <div class="form-group">
+              <label>活动名称</label>
+              <input type="text" v-model="editForm.activityName" class="form-input" placeholder="请输入活动名称">
+            </div>
+            <div class="form-group">
+              <label>活动描述</label>
+              <textarea v-model="editForm.activityDesc" class="form-textarea" placeholder="请输入活动描述"></textarea>
+            </div>
+            <div class="form-group">
+              <label>活动图片</label>
+              <div class="image-upload">
+                <input type="file" @change="handleImageUpload" accept="image/*" class="image-input">
+                <div v-if="editForm.coverUrl" class="image-preview">
+                  <img :src="editForm.coverUrl" alt="活动图片">
+                  <button type="button" class="remove-image" @click="removeImage">×</button>
+                </div>
+                <div v-else class="image-placeholder">
+                  点击上传图片
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>开始时间</label>
+              <input type="datetime-local" v-model="editForm.startTime" class="form-input">
+            </div>
+            <div class="form-group">
+              <label>结束时间</label>
+              <input type="datetime-local" v-model="editForm.endTime" class="form-input">
+            </div>
+            <div class="form-group">
+              <label>活动状态</label>
+              <select v-model="editForm.status" class="form-select">
+                <option value="0">即将开始</option>
+                <option value="1">进行中</option>
+                <option value="2">已结束</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn cancel-btn" @click="closeEditModal">取消</button>
+              <button type="submit" class="btn submit-btn">保存修改</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { getActivitiesByCreator } from '../api/activity';
+import { getActivitiesByCreator, updateActivity, deleteActivity as deleteActivityApi, uploadImage } from '../api/activity';
 import Navbar from './Navbar.vue';
 
 const IMG_DOMAIN = 'http://localhost:8080';
@@ -144,6 +205,23 @@ const defaultImage = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?p
 
 const showDetailModal = ref(false);
 const selectedActivity = ref(null);
+
+const showEditModal = ref(false);
+const editForm = ref({
+  id: 0,
+  activityName: '',
+  activityDesc: '',
+  coverUrl: '',
+  startTime: '',
+  endTime: '',
+  status: 0,
+  hotStatus: 0,
+  creator: '',
+  createTime: '',
+  updateTime: ''
+});
+
+const imageFile = ref(null);
 
 const getUsername = () => {
   const userStr = localStorage.getItem('user');
@@ -216,6 +294,125 @@ const openActivityDetail = (activity) => {
 const closeDetailModal = () => {
   showDetailModal.value = false;
   selectedActivity.value = null;
+};
+
+const editActivity = (activity) => {
+  // 填充编辑表单
+  editForm.value = {
+    ...activity,
+    // 转换时间格式为 datetime-local 支持的格式
+    startTime: activity.startTime ? activity.startTime.replace('T', ' ').slice(0, 16) : '',
+    endTime: activity.endTime ? activity.endTime.replace('T', ' ').slice(0, 16) : ''
+  };
+  showEditModal.value = true;
+};
+
+const closeEditModal = () => {
+  showEditModal.value = false;
+  editForm.value = {
+    id: 0,
+    activityName: '',
+    activityDesc: '',
+    coverUrl: '',
+    startTime: '',
+    endTime: '',
+    status: 0,
+    hotStatus: 0,
+    creator: '',
+    createTime: '',
+    updateTime: ''
+  };
+  imageFile.value = null;
+};
+
+const handleImageUpload = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    imageFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      editForm.value.coverUrl = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const removeImage = () => {
+  editForm.value.coverUrl = '';
+  imageFile.value = null;
+};
+
+const submitEdit = async () => {
+  if (!editForm.value.activityName || !editForm.value.activityDesc) {
+    alert('请填写活动名称和描述');
+    return;
+  }
+  
+  if (!editForm.value.startTime || !editForm.value.endTime) {
+    alert('请选择开始时间和结束时间');
+    return;
+  }
+  
+  try {
+    // 先上传图片，获取图片路径
+    let coverUrl = editForm.value.coverUrl;
+    if (imageFile.value) {
+      try {
+        const uploadResponse = await uploadImage(imageFile.value);
+        if (uploadResponse.code === 200 || uploadResponse.code === 0) {
+          coverUrl = uploadResponse.data;
+        } else {
+          alert('图片上传失败：' + uploadResponse.message);
+          return;
+        }
+      } catch (error) {
+        console.error('上传图片失败:', error);
+        alert('图片上传失败，请稍后重试');
+        return;
+      }
+    }
+    
+    // 构建活动对象
+    const activity = {
+      ...editForm.value,
+      coverUrl: coverUrl,
+      // 转换时间格式为 ISO 格式
+      startTime: new Date(editForm.value.startTime).toISOString(),
+      endTime: new Date(editForm.value.endTime).toISOString()
+    };
+    
+    // 调用更新接口
+    const response = await updateActivity(activity);
+    if (response.code === 200 || response.code === 0) {
+      alert('活动更新成功');
+      closeEditModal();
+      // 重新获取活动列表
+      fetchMyActivities();
+    } else {
+      alert('活动更新失败：' + response.message);
+    }
+  } catch (error) {
+    console.error('更新活动失败:', error);
+    alert('活动更新失败，请稍后重试');
+  }
+};
+
+const deleteActivity = async (id) => {
+  if (confirm('确定要删除这个活动吗？')) {
+    try {
+      const response = await deleteActivityApi(id);
+      if (response.code === 200 || response.code === 0) {
+        alert('活动删除成功');
+        // 重新获取活动列表
+        fetchMyActivities();
+      } else {
+        alert('活动删除失败：' + response.message);
+      }
+    } catch (error) {
+      console.error('删除活动失败:', error);
+      alert('活动删除失败，请稍后重试');
+    }
+  }
 };
 
 onMounted(() => {
@@ -385,6 +582,199 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.item-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 15px;
+}
+
+.action-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.edit-btn {
+  background-color: #1890ff;
+  color: white;
+}
+
+.edit-btn:hover {
+  background-color: #40a9ff;
+  transform: translateY(-1px);
+}
+
+.delete-btn {
+  background-color: #ff4757;
+  color: white;
+}
+
+.delete-btn:hover {
+  background-color: #ff6b81;
+  transform: translateY(-1px);
+}
+
+/* 编辑活动弹窗样式 */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333333;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #333333;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.form-textarea {
+  height: 100px;
+  resize: vertical;
+}
+
+.image-upload {
+  position: relative;
+}
+
+.image-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.image-preview {
+  position: relative;
+  width: 200px;
+  height: 150px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+}
+
+.image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.remove-image:hover {
+  background-color: #ff4757;
+  transform: scale(1.1);
+}
+
+.image-placeholder {
+  width: 200px;
+  height: 150px;
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999999;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.image-placeholder:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.form-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn {
+  background-color: #f5f5f5;
+  color: #333333;
+  border: 1px solid #d9d9d9;
+}
+
+.cancel-btn:hover {
+  background-color: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+}
+
+.submit-btn {
+  background-color: #1890ff;
+  color: white;
+}
+
+.submit-btn:hover {
+  background-color: #40a9ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
 }
 
 .list-view {

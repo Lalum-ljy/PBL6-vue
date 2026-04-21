@@ -55,8 +55,8 @@ export const createActivity = (data) => {
 };
 
 // 更新活动
-export const updateActivity = (id, data) => {
-  return service.put(`/activity/${id}`, data);
+export const updateActivity = (data) => {
+  return service.put('/activity', data);
 };
 
 // 删除活动
