@@ -174,7 +174,7 @@ const navigate = (menu) => {
       router.push('/hot');
       break;
     case 'my':
-      router.push('/my');
+      router.push('/myself');
       break;
     case 'settings':
       router.push('/settings');

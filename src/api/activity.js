@@ -22,6 +22,13 @@ export const getHotActivities = () => {
   return service.get('/activity/hot');
 };
 
+// 获取创建者的活动列表
+export const getActivitiesByCreator = (username) => {
+  return service.get('/activity/creator', {
+    params: { username }
+  });
+};
+
 // 按状态获取活动
 export const getActivitiesByStatus = (status) => {
   return service.get(`/activity/status/${status}`);

@@ -1,39 +1,93 @@
 <template>
-  <div class="hot-page-container">
+  <div class="myself-page-container">
     <!-- 左侧导航栏 -->
-    <Navbar :activeMenu="activeMenu" />
+    <Navbar :activeMenu="'my'" />
     
     <!-- 右侧主内容区 -->
     <div class="main-content">
-      <div class="hot-header">
-        <h2>热门活动</h2>
+      <div class="myself-header">
+        <h2>我的活动</h2>
+        <div class="view-toggle">
+          <button 
+            class="toggle-btn" 
+            :class="{ active: viewMode === 'card' }" 
+            @click="viewMode = 'card'"
+          >
+            卡片视图
+          </button>
+          <button 
+            class="toggle-btn" 
+            :class="{ active: viewMode === 'list' }" 
+            @click="viewMode = 'list'"
+          >
+            列表视图
+          </button>
+        </div>
       </div>
+      
       <div v-if="loading" class="loading">加载中...</div>
-      <div v-else-if="hotActivities.length > 0" class="hot-list">
-        <div class="hot-item" v-for="(activity, index) in hotActivities" :key="index" @click="openActivityDetail(activity)">
-          <div class="item-image">
-            <img :src="activity.coverUrl || defaultImage" :alt="activity.activityName">
-          </div>
-          <div class="item-content">
-            <h3 class="item-name">{{ activity.activityName }}</h3>
-            <p class="item-desc">{{ activity.activityDesc }}</p>
-            <div class="item-time-row">
-              <div class="item-time">
+      <div v-else-if="myActivities.length > 0" :class="['activities-container', viewMode]">
+        <!-- 卡片视图 -->
+        <div v-if="viewMode === 'card'" class="card-view">
+          <div 
+            class="activity-card" 
+            v-for="(activity, index) in myActivities" 
+            :key="index" 
+            @click="openActivityDetail(activity)"
+          >
+            <div class="card-image">
+              <img :src="activity.coverUrl || defaultImage" :alt="activity.activityName">
+            </div>
+            <div class="card-content">
+              <h3 class="card-name">{{ activity.activityName }}</h3>
+              <p class="card-desc">{{ activity.activityDesc }}</p>
+              <div class="card-time">
                 <span class="time-label">开始时间：</span>
                 <span class="time-value">{{ formatTime(activity.startTime) }}</span>
               </div>
-              <div class="item-time">
-                <span class="time-label">结束时间：</span>
-                <span class="time-value">{{ formatTime(activity.endTime) }}</span>
+              <div class="card-footer">
+                <span class="status-badge" :class="getStatusClass(activity.status)">
+                  {{ getStatusText(activity.status) }}
+                </span>
               </div>
-              <div class="item-status">
-                <span class="status-badge" :class="getStatusClass(activity.status)">{{ getStatusText(activity.status) }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 列表视图 -->
+        <div v-else class="list-view">
+          <div 
+            class="list-item" 
+            v-for="(activity, index) in myActivities" 
+            :key="index" 
+            @click="openActivityDetail(activity)"
+          >
+            <div class="item-image">
+              <img :src="activity.coverUrl || defaultImage" :alt="activity.activityName">
+            </div>
+            <div class="item-content">
+              <h3 class="item-name">{{ activity.activityName }}</h3>
+              <p class="item-desc">{{ activity.activityDesc }}</p>
+              <div class="item-time-row">
+                <div class="item-time">
+                  <span class="time-label">开始时间：</span>
+                  <span class="time-value">{{ formatTime(activity.startTime) }}</span>
+                </div>
+                <div class="item-time">
+                  <span class="time-label">结束时间：</span>
+                  <span class="time-value">{{ formatTime(activity.endTime) }}</span>
+                </div>
+                <div class="item-status">
+                  <span class="status-badge" :class="getStatusClass(activity.status)">
+                    {{ getStatusText(activity.status) }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div v-else class="empty">暂无热门活动</div>
+      <div v-else class="empty">暂无活动</div>
     </div>
     
     <!-- 活动详情弹窗 -->
@@ -79,48 +133,46 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { getHotActivities } from '../api/activity';
+import { getActivitiesByCreator } from '../api/activity';
 import Navbar from './Navbar.vue';
 
-// 全局配置
 const IMG_DOMAIN = 'http://localhost:8080';
-
-const router = useRouter();
-const activeMenu = ref('hot');
+const viewMode = ref('card');
 const loading = ref(false);
-const hotActivities = ref([]);
+const myActivities = ref([]);
 const defaultImage = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3';
 
-// 活动详情弹窗
 const showDetailModal = ref(false);
 const selectedActivity = ref(null);
 
-const openActivityDetail = (activity) => {
-  selectedActivity.value = activity;
-  showDetailModal.value = true;
+const getUsername = () => {
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    try {
+      const userObj = JSON.parse(userStr);
+      return userObj.username || '用户';
+    } catch (e) {
+      console.error('解析用户信息失败:', e);
+      return '用户';
+    }
+  }
+  return '用户';
 };
 
-const closeDetailModal = () => {
-  showDetailModal.value = false;
-  selectedActivity.value = null;
-};
-
-const fetchHotActivities = async () => {
+const fetchMyActivities = async () => {
   loading.value = true;
   try {
-    const response = await getHotActivities();
+    const username = getUsername();
+    const response = await getActivitiesByCreator(username);
     if (response.code === 200 && response.data) {
-      // 处理分页接口返回的数据结构
       const responseData = response.data.data || response.data;
-      // 为 coverUrl 字段添加域名
-      hotActivities.value = responseData.map(activity => ({
+      myActivities.value = responseData.map(activity => ({
         ...activity,
         coverUrl: activity.coverUrl ? IMG_DOMAIN + activity.coverUrl : activity.coverUrl
       }));
     }
   } catch (error) {
-    console.error('获取热门活动失败:', error);
+    console.error('获取我的活动失败:', error);
   } finally {
     loading.value = false;
   }
@@ -156,19 +208,28 @@ const getStatusText = (status) => {
   }
 };
 
+const openActivityDetail = (activity) => {
+  selectedActivity.value = activity;
+  showDetailModal.value = true;
+};
+
+const closeDetailModal = () => {
+  showDetailModal.value = false;
+  selectedActivity.value = null;
+};
+
 onMounted(() => {
-  fetchHotActivities();
+  fetchMyActivities();
 });
 </script>
 
 <style scoped>
-.hot-page-container {
+.myself-page-container {
   display: flex;
   height: 100vh;
   overflow: hidden;
 }
 
-/* 右侧主内容区 */
 .main-content {
   padding: 20px;
   overflow-y: auto;
@@ -183,22 +244,46 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-/* 当导航栏折叠时 */
-.sidebar.collapsed + .main-content {
-  margin-left: 70px;
-  width: calc(100% - 70px);
-}
-
-.hot-header {
+.myself-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 30px;
   width: 100%;
 }
 
-.hot-header h2 {
+.myself-header h2 {
   margin: 0;
   color: #333333;
   font-size: 24px;
   font-weight: 600;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 10px;
+}
+
+.toggle-btn {
+  padding: 8px 16px;
+  border: 1px solid #d9d9d9;
+  background-color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.3s ease;
+}
+
+.toggle-btn:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.toggle-btn.active {
+  background-color: #1890ff;
+  border-color: #1890ff;
+  color: white;
 }
 
 .loading {
@@ -208,14 +293,108 @@ onMounted(() => {
   font-size: 16px;
 }
 
-.hot-list {
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: #999999;
+  font-size: 16px;
+  width: 100%;
+}
+
+.activities-container {
+  width: 100%;
+}
+
+.card-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.activity-card {
+  background-color: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.activity-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.card-image {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+}
+
+.card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-name {
+  margin: 0;
+  color: #333333;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.card-desc {
+  margin: 0;
+  color: #666666;
+  font-size: 14px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666666;
+}
+
+.time-label {
+  font-weight: 500;
+  color: #999999;
+}
+
+.time-value {
+  color: #333333;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.list-view {
   display: flex;
   flex-direction: column;
   gap: 20px;
   width: 100%;
 }
 
-.hot-item {
+.list-item {
   display: flex;
   background-color: white;
   border-radius: 12px;
@@ -223,9 +402,10 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   width: 100%;
+  cursor: pointer;
 }
 
-.hot-item:hover {
+.list-item:hover {
   transform: translateY(-3px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -285,15 +465,6 @@ onMounted(() => {
   color: #666666;
 }
 
-.time-label {
-  font-weight: 500;
-  color: #999999;
-}
-
-.time-value {
-  color: #333333;
-}
-
 .item-status {
   margin-left: auto;
 }
@@ -321,70 +492,6 @@ onMounted(() => {
   color: #d32f2f;
 }
 
-.empty {
-  text-align: center;
-  padding: 40px;
-  color: #999999;
-  font-size: 16px;
-  width: 100%;
-}
-
-@media (max-width: 768px) {
-  .hot-item {
-    flex-direction: column;
-  }
-  
-  .item-image {
-    width: 100%;
-    height: 200px;
-    border-radius: 12px 12px 0 0;
-  }
-  
-  .item-content {
-    padding: 15px;
-  }
-  
-  .item-name {
-    font-size: 16px;
-  }
-  
-  .item-desc {
-    font-size: 13px;
-  }
-}
-
-@media (max-width: 480px) {
-  .hot-page-container {
-    padding: 15px;
-  }
-  
-  .hot-header h2 {
-    font-size: 20px;
-  }
-  
-  .item-image {
-    height: 180px;
-  }
-  
-  .item-content {
-    padding: 12px;
-    gap: 10px;
-  }
-  
-  .item-name {
-    font-size: 15px;
-  }
-  
-  .item-desc {
-    font-size: 12px;
-  }
-  
-  .item-time {
-    font-size: 13px;
-  }
-}
-
-/* 遮罩层：更柔和的动画 + 毛玻璃效果 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -392,7 +499,7 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px); /* 毛玻璃效果 */
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -402,16 +509,14 @@ onMounted(() => {
   transition: all 0.3s ease;
 }
 
-/* 打开时的动画类 */
 .modal-overlay.active {
   opacity: 1;
   visibility: visible;
 }
 
-/* 弹窗容器：更精致的阴影 + 弹性布局优化 */
 .modal-container {
   width: 72%;
-  max-width: 1100px; /* 限制最大宽度，大屏不拉伸 */
+  max-width: 1100px;
   height: 75%;
   max-height: 85vh;
   background-color: #ffffff;
@@ -430,7 +535,6 @@ onMounted(() => {
   transform: translateY(0) scale(1);
 }
 
-/* 关闭按钮：更精致、更轻量 */
 .modal-close-btn {
   position: absolute;
   top: 18px;
@@ -456,7 +560,6 @@ onMounted(() => {
   transform: rotate(90deg) scale(1.05);
 }
 
-/* 内容区：更舒适的内边距 */
 .modal-content {
   padding: 36px 40px;
   overflow-y: auto;
@@ -465,16 +568,14 @@ onMounted(() => {
   scroll-behavior: smooth;
 }
 
-/* 顶部区域：间距更精致 */
 .modal-top-section {
   display: flex;
   gap: 36px;
   margin-bottom: 36px;
   align-items: flex-start;
-  flex-wrap: wrap; /* 小屏幕自动换行 */
+  flex-wrap: wrap;
 }
 
-/* 图片容器：更柔和的圆角 */
 .modal-image {
   width: 320px;
   height: 210px;
@@ -492,10 +593,9 @@ onMounted(() => {
 }
 
 .modal-image:hover img {
-  transform: scale(1.03); /* 轻微放大效果 */
+  transform: scale(1.03);
 }
 
-/* 标题区域：更清晰的层级 */
 .modal-title-section {
   flex: 1;
   min-width: 280px;
@@ -521,7 +621,6 @@ onMounted(() => {
   text-align: left;
 }
 
-/* 状态标签：更精致 */
 .modal-status {
   padding: 7px 14px;
   border-radius: 8px;
@@ -546,7 +645,6 @@ onMounted(() => {
   color: #c62828;
 }
 
-/* 描述区域：更舒适阅读 */
 .modal-desc-section {
   margin-bottom: 36px;
 }
@@ -566,7 +664,6 @@ onMounted(() => {
   letter-spacing: 0.2px;
 }
 
-/* 信息网格：响应式优化 */
 .modal-info {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -593,14 +690,74 @@ onMounted(() => {
   font-weight: 500;
 }
 
-/* 确保热门活动项可点击 */
-.hot-item {
-  cursor: pointer;
-}
-
-/* 点击效果 */
-.hot-item:active {
+.activity-card:active,
+.list-item:active {
   transform: scale(0.98);
   transition: transform 0.1s ease;
+}
+
+@media (max-width: 768px) {
+  .list-item {
+    flex-direction: column;
+  }
+  
+  .item-image {
+    width: 100%;
+    height: 200px;
+    border-radius: 12px 12px 0 0;
+  }
+  
+  .item-content {
+    padding: 15px;
+  }
+  
+  .item-name {
+    font-size: 16px;
+  }
+  
+  .item-desc {
+    font-size: 13px;
+  }
+  
+  .card-view {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .myself-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .view-toggle {
+    width: 100%;
+  }
+  
+  .toggle-btn {
+    flex: 1;
+    text-align: center;
+  }
+  
+  .card-view {
+    grid-template-columns: 1fr;
+  }
+  
+  .card-image {
+    height: 200px;
+  }
+  
+  .card-content {
+    padding: 12px;
+  }
+  
+  .card-name {
+    font-size: 15px;
+  }
+  
+  .card-desc {
+    font-size: 13px;
+  }
 }
 </style>

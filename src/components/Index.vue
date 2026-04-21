@@ -125,28 +125,27 @@
     </div>
     
     <!-- 活动详情弹窗 -->
-    <div v-if="showDetailModal" class="modal-overlay" @click="closeDetailModal">
+    <div v-if="showDetailModal" class="modal-overlay active" @click="closeDetailModal">
       <div class="modal-container" @click.stop>
         <button class="modal-close-btn" @click="closeDetailModal">×</button>
         <div class="modal-content">
-          <div class="modal-header">
-            <h2>{{ selectedActivity?.activityName || selectedActivity?.title }}</h2>
-            <span class="modal-status" :class="getStatusClass(selectedActivity?.status)">
-              {{ getStatusText(selectedActivity?.status) }}
-            </span>
+          <div class="modal-top-section">
+            <div class="modal-image" v-if="selectedActivity?.coverUrl || selectedActivity?.image">
+              <img :src="selectedActivity?.coverUrl || selectedActivity?.image" :alt="selectedActivity?.activityName || selectedActivity?.title">
+            </div>
+            <div class="modal-title-section">
+              <h2>{{ selectedActivity?.activityName || selectedActivity?.title }}</h2>
+              <div class="modal-time">开始时间：{{ formatTime(selectedActivity?.startTime) }}</div>
+              <span class="modal-status" :class="getStatusClass(selectedActivity?.status)">
+                {{ getStatusText(selectedActivity?.status) }}
+              </span>
+            </div>
           </div>
-          <div class="modal-image" v-if="selectedActivity?.coverUrl || selectedActivity?.image">
-            <img :src="selectedActivity?.coverUrl || selectedActivity?.image" :alt="selectedActivity?.activityName || selectedActivity?.title">
+          <div class="modal-desc-section">
+            <h3>活动描述：</h3>
+            <p>{{ selectedActivity?.activityDesc || selectedActivity?.description }}</p>
           </div>
           <div class="modal-info">
-            <div class="info-item">
-              <label>活动描述：</label>
-              <p>{{ selectedActivity?.activityDesc || selectedActivity?.description }}</p>
-            </div>
-            <div class="info-item">
-              <label>开始时间：</label>
-              <p>{{ formatTime(selectedActivity?.startTime) }}</p>
-            </div>
             <div class="info-item">
               <label>结束时间：</label>
               <p>{{ formatTime(selectedActivity?.endTime) }}</p>
@@ -165,8 +164,8 @@
     </div>
     
     <!-- 发布活动弹窗 -->
-    <div v-if="showPublishModal" class="modal-overlay" @click="closePublishModal">
-      <div class="modal-container publish-modal" @click.stop>
+    <div v-if="showPublishModal" class="modal-overlay active" @click="closePublishModal">
+      <div class="modal-container" @click.stop>
         <button class="modal-close-btn" @click="closePublishModal">×</button>
         <div class="modal-content">
           <div class="modal-header">
@@ -273,19 +272,19 @@ const imageFile = ref(null);
 const currentSlide = ref(0);
 const carouselSlides = ref([
   {
-    image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=colorful%20event%20banner%20with%20people%20celebrating&image_size=landscape_16_9',
-    title: '夏季音乐节',
-    description: '一场视听盛宴，不容错过！'
+    image: 'src/img/book1.png',
+    title: '广告位招租1',
+    description: '这里是广告位招租，每月仅需888'
   },
   {
-    image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=tech%20conference%20with%20speakers%20and%20audience&image_size=landscape_16_9',
-    title: '科技创新峰会',
-    description: '探索未来科技趋势'
+    image: 'src/img/login.jpg',
+    title: '占位符',
+    description: ''
   },
   {
-    image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=sports%20event%20with%20athletes%20competing&image_size=landscape_16_9',
-    title: '城市马拉松',
-    description: '挑战自我，超越极限'
+    image: 'src/img/flysky.jpg',
+    title: '无绳蹦极',
+    description: '飞起来!!!'
   }
 ]);
 
@@ -390,7 +389,7 @@ const fetchActivities = async (status = -1, startTime = null, endTime = null) =>
       if (hotData && hotData.length > 0) {
         hotActivities.value = hotData.map(item => ({
           id: item.id,
-          image: item.coverUrl ? IMG_DOMAIN + item.coverUrl : 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=default%20event%20image&image_size=landscape_4_3',
+          image: item.coverUrl ? IMG_DOMAIN + item.coverUrl : '',
           title: item.activityName,
           description: item.activityDesc,
           date: formatTime(item.startTime),
@@ -1388,116 +1387,193 @@ onMounted(() => {
   }
 }
 
-/* 活动详情弹窗样式 */
+/* 遮罩层：更柔和的动画 + 毛玻璃效果 */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px); /* 毛玻璃效果 */
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
 }
 
+/* 打开时的动画类 */
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 弹窗容器：更精致的阴影 + 弹性布局优化 */
 .modal-container {
-  width: 70%;
-  height: 70%;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  width: 72%;
+  max-width: 1100px; /* 限制最大宽度，大屏不拉伸 */
+  height: 75%;
+  max-height: 85vh;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18),
+              0 4px 12px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transform: translateY(10px) scale(0.98);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.modal-overlay.active .modal-container {
+  transform: translateY(0) scale(1);
+}
+
+/* 关闭按钮：更精致、更轻量 */
 .modal-close-btn {
   position: absolute;
-  top: 15px;
-  left: 15px;
-  width: 40px;
-  height: 40px;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
   border: none;
-  font-size: 28px;
-  color: #333;
+  font-size: 22px;
+  color: #555;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
   z-index: 10;
 }
 
 .modal-close-btn:hover {
-  background-color: rgba(0, 0, 0, 0.2);
-  transform: scale(1.1);
+  background-color: #ff4757;
+  color: white;
+  transform: rotate(90deg) scale(1.05);
 }
 
+/* 内容区：更舒适的内边距 */
 .modal-content {
-  padding: 30px;
-  padding-top: 70px;
+  padding: 36px 40px;
   overflow-y: auto;
+  flex: 1;
   height: 100%;
+  scroll-behavior: smooth;
 }
 
-.modal-header {
+/* 顶部区域：间距更精致 */
+.modal-top-section {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  gap: 36px;
+  margin-bottom: 36px;
+  align-items: flex-start;
+  flex-wrap: wrap; /* 小屏幕自动换行 */
 }
 
-.modal-header h2 {
-  margin: 0;
-  color: #333;
-  font-size: 28px;
-}
-
-.modal-status {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.modal-status.upcoming {
-  background-color: #e3f2fd;
-  color: #1976d2;
-}
-
-.modal-status.ongoing {
-  background-color: #e8f5e8;
-  color: #388e3c;
-}
-
-.modal-status.ended {
-  background-color: #ffebee;
-  color: #d32f2f;
-}
-
+/* 图片容器：更柔和的圆角 */
 .modal-image {
-  width: 100%;
-  height: 300px;
-  border-radius: 12px;
+  width: 320px;
+  height: 210px;
+  border-radius: 14px;
   overflow: hidden;
-  margin-bottom: 30px;
+  flex-shrink: 0;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
 }
 
 .modal-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
 }
 
+.modal-image:hover img {
+  transform: scale(1.03); /* 轻微放大效果 */
+}
+
+/* 标题区域：更清晰的层级 */
+.modal-title-section {
+  flex: 1;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-title-section h2 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.3px;
+  text-align: left;
+}
+
+.modal-time {
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
+  text-align: left;
+}
+
+/* 状态标签：更精致 */
+.modal-status {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+.modal-status.upcoming {
+  background-color: #e6f4ff;
+  color: #0b6bc1;
+}
+
+.modal-status.ongoing {
+  background-color: #e6f7e6;
+  color: #2e7d32;
+}
+
+.modal-status.ended {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* 描述区域：更舒适阅读 */
+.modal-desc-section {
+  margin-bottom: 36px;
+}
+
+.modal-desc-section h3 {
+  margin: 0 0 16px 0;
+  color: #222;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.modal-desc-section p {
+  margin: 0;
+  color: #555;
+  font-size: 16px;
+  line-height: 1.65;
+  letter-spacing: 0.2px;
+}
+
+/* 信息网格：响应式优化 */
 .modal-info {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
   align-items: start;
 }
 
